@@ -1,13 +1,16 @@
 # Controllable Text Generation with Neurally-Decomposed Oracle
+
 This repository contains the source code to reproduce the experiments in NeurIPS 2022 paper
 [Controllable Text Generation with Neurally-Decomposed Oracle](https://arxiv.org/abs/2205.14219) by [Tao Meng](https://mtsomethree.github.io/), [Sidi Lu](http://sidilu.cn/), [Nanyun Peng](https://vnpeng.net/) and [Kai-Wei Chang](http://web.cs.ucla.edu/~kwchang/).
 
 We are now working on the camera ready and the codebase is not a in a stable version. If you come up with some technical issue, please feel free to leave an issue or send an email to the first author.
 
 - ### Abstract
+
 We propose a general and efficient framework to control auto-regressive generation models with NeurAlly-Decomposed Oracle (NADO). Given a pre-trained base language model and a sequence-level boolean oracle function, we propose to decompose the oracle function into token-level guidance to steer the base model in text generation. Specifically, the token-level guidance is approximated by a neural model trained with examples sampled from the base model, demanding no additional auxiliary labeled data. We present the closed-form optimal solution to incorporate the token-level guidance into the base model for controllable generation. We further provide a theoretical analysis of how the approximation quality of NADO affects the controllable generation results. Experiments conducted on two applications: (1) text generation with lexical constraints and (2) machine translation with formality control demonstrate that our framework efficiently guides the base model towards the given oracle while maintaining high generation quality.
 
 - ### Experiments
+
 This repository will contain both experiments described in this paper. So far the LCG part is still under construction and expected to come out later October.
 
 - ### Data
@@ -18,9 +21,15 @@ The machine translation formality change experiments leverage the [CALLHOME Span
 
 **Requirements**
 
+On systems where the system Python is externally managed (PEP 668, e.g. Debian/Ubuntu), install the dependencies in a virtual environment:
+
 ```bash
-pip install -r requirements.txt
+uv venv --python 3.10
+source .venv/bin/activate
+uv pip install -r requirements.txt
 ```
+
+Activate the environment (`source .venv/bin/activate`) in every new shell before running the experiments.
 
 **Running**
 

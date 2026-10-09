@@ -318,7 +318,7 @@ def test_rc(model, tokenizer, constraint_function, source_texts, args, use_const
     for idx in tqdm(range(iter_num + 1)): # TODO: what if length % 32 == 0?
         if args.test_mode == 'sample':
             num_per_text = args.sample_batch_size
-            texts = [source_text] * num_per_text
+            texts = [source_texts] * num_per_text
         else:
             num_per_text = 1
             texts = source_texts[idx * test_batch_size: min(length, (idx + 1) *  test_batch_size)]

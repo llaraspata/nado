@@ -1,5 +1,16 @@
-.idea/
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Data / outputs
 *.txt
 *.json
-*.pyc
+
+# Editors / OS
+.vscode/
+.idea/
 .DS_Store
