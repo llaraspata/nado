@@ -1,0 +1,15 @@
+universe = vanilla
+request_cpus = 8
+request_gpus = 0
+request_memory = 48 GB
+
+initialdir = /lustrehome/llaraspata/nado
+getenv = True
+
+executable = /lustrehome/llaraspata/nado/recas/setup.sh
+
+output = logs/setup-out.log
+error  = logs/setup-err.log
+log    = logs/setup-log.log
+
+queue
