@@ -15,6 +15,9 @@ import math
 import os
 import argparse
 
+# checkpoints store argparse.Namespace; allow it under torch>=2.6 weights_only loading
+torch.serialization.add_safe_globals([argparse.Namespace])
+
 class FUDGEModel(torch.nn.Module):
 	def __init__(self, args, gpt_pad_id, vocab_size, rhyme_group_size=None, glove_embeddings=None, verbose=True):
 		super(FUDGEModel, self).__init__()

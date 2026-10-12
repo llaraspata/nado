@@ -1,3 +1,7 @@
+import os
+# Must be set before torch initialises CUDA. Keeps the GPU HTCondor assigned to the job, else uses GPU 0
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "1")
+
 from torch.optim import AdamW, Adam
 from torch.nn.functional import log_softmax, softmax
 from transformers import MarianMTModel, MarianTokenizer
@@ -489,10 +493,7 @@ if __name__ == "__main__":
     test_texts = ["Me gusta tocar el piano.", "Esta es una tarea de traducción automática."]
 
     if args.device is None:
-        if args.cuda == -1:
-            args.device = 'cpu'
-        else:
-            args.device = 'cuda:%d'%(args.cuda)
+        args.device = 'cuda'
 
     constraint_function = NeuralConstraintFunction()
     constraint_function.init_FUDGE_formality()
@@ -541,22 +542,25 @@ if __name__ == "__main__":
     train_es = []
     test_es = []
     train_en = []
-    valid_en = [[]] * num_reference
-    test_en = [[]] * num_reference
+    valid_en = [[] for _ in range(num_reference)]
+    test_en = [[] for _ in range(num_reference)]
 
-    with open('fisher-callhome-corpus/corpus/ldc/fisher_test.es', 'r') as f:
+    with open('fisher-callhome-corpus/corpus/oracle/fisher_test.es', 'r') as f:
         for line in f:
             test_es.append(line.strip())
 
-    with open('fisher-callhome-corpus/corpus/ldc/fisher_train.es', 'r') as f:
+    with open('fisher-callhome-corpus/corpus/oracle/fisher_train.es', 'r') as f:
         for line in f:
             train_es.append(line.strip())
 
-    with open('fisher-callhome-corpus/corpus/ldc/fisher_dev.es', 'r') as f:
-        for line in f:
-            valid_es.append(line.strip())
+    # fluent-fisher dev refs omit two empty source lines (1174 and 1185, 1-indexed)
+    fluent_dev_missing = {1173, 1184}
+    with open('fisher-callhome-corpus/corpus/oracle/fisher_dev.es', 'r') as f:
+        for idx, line in enumerate(f):
+            if idx not in fluent_dev_missing:
+                valid_es.append(line.strip())
 
-    with open('fisher-callhome-corpus/corpus/ldc/fisher_train.en', 'r') as f:
+    with open('fisher-callhome-corpus/corpus/ldc/fisher_train.en', 'r', newline='\n') as f:
         for line in f:
             train_en.append(line.strip())
 

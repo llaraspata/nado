@@ -298,6 +298,8 @@ class ConstrainedIndMT(MarianMTModel):
         rc_labels=None,
         rc_weights=None,
         fine_tune=False,
+        cache_position=None,
+        **kwargs,
     ):
         # past_key_values is num_layers * (self_attn(k, v), cross_attn(k, v)) 
         #                               * [batch_size, num_heads, length - 1, d / num_heads]
@@ -325,6 +327,7 @@ class ConstrainedIndMT(MarianMTModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            cache_position=cache_position,
         )
         constr_logits = self.rc_linear(rc_outputs[0])
 
@@ -346,12 +349,26 @@ class ConstrainedIndMT(MarianMTModel):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                cache_position=cache_position,
             )
             mt_logits = self.log_softmax_fct(outputs.logits)
             final_logits = mt_logits + self.log_sigmoid_fct(constr_logits) * self.constraint_factor
 
         else:
             outputs = rc_outputs
+            if self.regularization > 0.0:
+                # the regularizer compares Rc against the base MT distribution, which is frozen while training Rc
+                with torch.no_grad():
+                    mt_outputs = super().forward(
+                        input_ids=input_ids,
+                        attention_mask=attention_mask,
+                        decoder_input_ids=decoder_input_ids,
+                        decoder_attention_mask=decoder_attention_mask,
+                        encoder_outputs=encoder_outputs,
+                        use_cache=False,
+                        return_dict=True,
+                    )
+                mt_logits = self.log_softmax_fct(mt_outputs.logits)
 
         
         loss1 = 0.0
@@ -380,11 +397,13 @@ class ConstrainedIndMT(MarianMTModel):
             loss = loss1
 
             if self.regularization > 0.0:
-                final_logits = mt_logits * self.temperature + self.log_sigmoid_fct(constr_logits) * self.constraint_factor
+                # R(y<i) = sum_y p(y|y<i) R(y<=i): Rc enters with weight 1, independent of the decoding-time constraint_factor
+                final_logits = mt_logits * self.temperature + self.log_sigmoid_fct(constr_logits)
                 for i in range(1, length):
                     pred_logits = torch.gather(constr_logits[:, i - 1, :], 1, decoder_input_ids[:, i].unsqueeze(1))
                     pred_probs = torch.sigmoid(pred_logits)
-                    sum_log = torch.logsumexp(final_logits[:, i, :], dim=-1).unsqueeze(1)
+                    # keep sum_probs < 1 so sum_logits stays finite
+                    sum_log = torch.logsumexp(final_logits[:, i, :], dim=-1).unsqueeze(1).clamp(max=-1e-6)
                     sum_probs = torch.exp(sum_log)
                     sum_logits = torch.log(sum_probs / (1 - sum_probs))
                     ### wrong version
@@ -453,25 +472,18 @@ class ConstrainedIndMT(MarianMTModel):
         torch.save(save_dict, save_dir)
 
 
+    @classmethod
+    def _supports_default_dynamic_cache(cls):
+        # past_key_values is a (mt_cache, rc_cache) pair, so generate() must not create a single cache for us;
+        # the inner Marian models create their own caches on the first step
+        return False
+
     @staticmethod
     def _reorder_cache(past, beam_idx):
-        past1, past2 = past
-
-        reordered_past1 = ()
-        for layer_past in past1:
-            # cached cross_attention states don't have to be reordered -> they are always the same
-            reordered_past1 += (
-                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
-            )
-
-        reordered_past2 = ()
-        for layer_past in past2:
-            # cached cross_attention states don't have to be reordered -> they are always the same
-            reordered_past2 += (
-                tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
-            )
-
-        return (reordered_past1, reordered_past2)
+        for cache in past:
+            if cache is not None:
+                cache.reorder_cache(beam_idx)
+        return past
 
 if __name__ == "__main__":
     src_text = [
