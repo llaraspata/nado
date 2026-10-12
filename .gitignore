@@ -20,3 +20,5 @@ test_evaluator_gyafc_family_relationships/
 
 *.log
 *.pt
+dump
+dump/
