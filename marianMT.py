@@ -1,3 +1,5 @@
+import os
+
 from transformers import MarianMTModel, MarianTokenizer
 from transformers.models.marian.modeling_marian import MarianDecoder, MarianModel
 from transformers.modeling_outputs import Seq2SeqLMOutput
@@ -464,6 +466,7 @@ class ConstrainedIndMT(MarianMTModel):
         decoder_dict = self.rc_model.state_dict()
         linear_dict = self.rc_linear.state_dict()
         print ("Saving Model to %s..."%(save_dir))
+        os.makedirs(os.path.dirname(save_dir), exist_ok=True)
         torch.save((decoder_dict, linear_dict), save_dir)
 
     def save_all(self, save_dir):
