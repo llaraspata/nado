@@ -17,6 +17,7 @@ import numpy as np
 import sacrebleu
 import argparse
 import os
+from run_stats import ResourceTracker, save_model_stats, default_stats_file
 
 
 def sample_from_marianMT(model, tokenizer, source_texts, constraint_function, args):
@@ -215,6 +216,7 @@ def train_rc(model, train_data, valid_texts, constraint_function, args, valid_re
     train_length = len(inputs_list)
 
     max_satisfied = -1
+    best_epoch = None
 
     if args.warm_start:
         print ("Start Warm Start:")
@@ -285,6 +287,7 @@ def train_rc(model, train_data, valid_texts, constraint_function, args, valid_re
         satisfied, bleu_score, translated = test_rc(model, tokenizer, constraint_function, valid_texts, args, use_constr=(args.num_epochs != 1), sample_text=(epoch == args.num_epochs - 1), references=valid_ref)
         if satisfied > max_satisfied:
             max_satisfied = satisfied
+            best_epoch = epoch
             best_translated = translated
             model.save_rc(args.save_dir)
 
@@ -292,6 +295,8 @@ def train_rc(model, train_data, valid_texts, constraint_function, args, valid_re
     with open(args.log, 'w') as f:
         for line in best_translated:
             f.write("%d %s\n"%(constraint_function(line), line))
+
+    return best_epoch
 
 
 def test_rc(model, tokenizer, constraint_function, source_texts, args, use_constr=True, sample_text=False, references=None):
@@ -483,6 +488,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_dir', type=str, default=None)
     parser.add_argument('--reg_type', type=int, default=3)
     parser.add_argument('--repetition', type=float, default=5.0)
+    parser.add_argument('--stats_file', type=str, default=None, help='where to save the json with model and resource statistics')
 
     args = parser.parse_args()
 
@@ -494,6 +500,9 @@ if __name__ == "__main__":
 
     if args.device is None:
         args.device = 'cuda'
+
+    tracker = ResourceTracker(args.device)
+    tracker.start_phase('loading')
 
     constraint_function = NeuralConstraintFunction()
     constraint_function.init_FUDGE_formality()
@@ -578,6 +587,11 @@ if __name__ == "__main__":
                 #clean_line = " ".join(clean_line)
                 test_en[i].append(line.strip())
 
+    rc_best_epoch = None
+
+    if args.load_dir is None:
+        tracker.end_phase()
+
     if args.fine_tune:
         model.to(args.device)
         for i in range(3):
@@ -591,13 +605,16 @@ if __name__ == "__main__":
         model.model_rc_decoder.load_state_dict(decoder_dict)
         model.model_rc_linear.load_state_dict(linear_dict)
         model.to(args.device)
+        tracker.end_phase()
 
-        satisfied, _, _ = test_rc(model, tokenizer, constraint_function, test_es, args, use_constr=True, sample_text=True, references=test_en)
+        with tracker.phase('generation'):
+            satisfied, _, _ = test_rc(model, tokenizer, constraint_function, test_es, args, use_constr=True, sample_text=True, references=test_en)
 
     else:
 
         constraint_function.set_device(args.device)
-        train_data = sample_from_marianMT(model, tokenizer, train_es[:10000], constraint_function, args)
+        with tracker.phase('sampling'):
+            train_data = sample_from_marianMT(model, tokenizer, train_es[:10000], constraint_function, args)
         model.set_constraint_factor(0.0)
         '''
         satisfied, _, translated = test_rc(model, tokenizer, constraint_function, test_es, args, use_constr=True, sample_text=False, references=test_en)
@@ -606,6 +623,31 @@ if __name__ == "__main__":
                 f.write("%s\n"%(line))
         print ("Output base done!")
         '''
-        train_rc(model, train_data, valid_es, constraint_function, args, valid_ref=valid_en)
-        satisfied, _, _ = test_rc(model, tokenizer, constraint_function, test_es, args, use_constr=True, sample_text=True, references=test_en)
+        with tracker.phase('training'):
+            rc_best_epoch = train_rc(model, train_data, valid_es, constraint_function, args, valid_ref=valid_en)
+        with tracker.phase('generation'):
+            satisfied, _, _ = test_rc(model, tokenizer, constraint_function, test_es, args, use_constr=True, sample_text=True, references=test_en)
+
+    stats_file = args.stats_file or default_stats_file('formality', 'nado_marian_es_en_fisher')
+    rc_module = torch.nn.ModuleDict({'rc_model': model.rc_model, 'rc_linear': model.rc_linear})
+    save_model_stats(
+        stats_file, model_name, model_name, model,
+        {
+            'formality': {
+                'ckpt': constraint_function.ckpt_path,
+                'task': constraint_function.ckpt_task,
+                'epoch': constraint_function.ckpt_epoch,
+                'model': constraint_function.model,
+            },
+            'nado_rc': {
+                'ckpt': args.load_dir if args.load_dir is not None else args.save_dir,
+                'task': 'formality',
+                'epoch': rc_best_epoch,
+                'model': rc_module,
+            },
+        },
+        resources=tracker.summary(num_examples=len(test_es)),
+        lm_exclude_prefixes=('rc_model.', 'rc_linear.'),
+    )
+    print ("Saved run statistics to %s"%(stats_file))
 

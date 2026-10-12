@@ -82,6 +82,10 @@ class NeuralConstraintFunction(object):
 
 		checkpoint = torch.load(dump_dir, map_location=self.device)
 		model_args = checkpoint['args']
+		# kept for run statistics (see run_stats.save_model_stats)
+		self.ckpt_path = dump_dir
+		self.ckpt_task = getattr(model_args, 'task', None)
+		self.ckpt_epoch = checkpoint.get('epoch')
 		pad_id = self.tokenizer.encode(PAD_TOKEN)[0]
 		self.model = FUDGEModel(model_args, pad_id, 0) # no need to get the glove embeddings when reloading since they're saved in model ckpt anyway
 		self.model.load_state_dict(checkpoint['state_dict'])
