@@ -1,0 +1,16 @@
+universe = vanilla
+request_cpus = 8
+request_gpus = 1
+request_memory = 48 GB
+
+initialdir = /lustrehome/llaraspata/nado
+getenv = True
+
+executable = recas/formality.sh
+
+output = logs/original_formality.log
+error  = logs/original_formality.log
+log    = logs/original_formality.log
+
+arguments = "original_formality.log"
+queue

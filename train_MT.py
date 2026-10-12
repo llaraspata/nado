@@ -195,6 +195,7 @@ def train_rc(model, train_data, valid_texts, constraint_function, args, valid_re
     print ("Strat Training...")
     model.to(args.device)
     inputs_list, samples_list, labels_list, d_masks_list, e_masks_list, logprobs_list = train_data
+
     for p in model.parameters():
         p.requires_grad = False
     rc_parameters = []
@@ -287,6 +288,7 @@ def train_rc(model, train_data, valid_texts, constraint_function, args, valid_re
     with open(args.log, 'w') as f:
         for line in best_translated:
             f.write("%d %s\n"%(constraint_function(line), line))
+
 
 def test_rc(model, tokenizer, constraint_function, source_texts, args, use_constr=True, sample_text=False, references=None):
     if use_constr:
