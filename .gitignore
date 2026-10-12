@@ -17,3 +17,5 @@ __pycache__/
 
 test_evaluator_gyafc_family_relationships
 test_evaluator_gyafc_family_relationships/
+
+*.log
