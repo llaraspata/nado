@@ -602,8 +602,8 @@ if __name__ == "__main__":
 
     if args.load_dir is not None:
         decoder_dict, linear_dict = torch.load(args.load_dir)
-        model.model_rc_decoder.load_state_dict(decoder_dict)
-        model.model_rc_linear.load_state_dict(linear_dict)
+        model.rc_model.load_state_dict(decoder_dict)
+        model.rc_linear.load_state_dict(linear_dict)
         model.to(args.device)
         tracker.end_phase()
 
