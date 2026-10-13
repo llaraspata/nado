@@ -1,0 +1,83 @@
+# Datasets and base LMs for the toxicity task (train_toxicity.py), as in fudge's config.yaml.
+#
+# train_toxicity.py uses the `dataset` and `model` entries selected below. Pick others per run with
+#   python train_toxicity.py --model qwen25_0_5b
+# and point to a different config file with --config.
+#
+# Any key in an entry is used as the default for the script argument of the same name
+# (model_string, oracle_ckpt, rc_layers, ...). Arguments given on the command line always win,
+# and keys the script doesn't have an argument for are ignored.
+#
+# Paths under fudge/ go through the `fudge` symlink to the fudge repo (ln -s ../fudge fudge).
+# oracle_ckpt is the FUDGE toxicity predictor that labels NADO's samples: the one fudge evaluates the same model
+# with (one per tokenizer family, trained by fudge/main.py --dataset rtp --model <entry>).
+
+dataset: rtp
+model: gpt2_medium
+
+datasets:
+  rtp: # RealToxicityPrompts (downloaded by recas/setup.sh), split as fudge/prepare_toxicity_data.py does
+    task: toxicity
+    data_file: data/RealToxicityPrompts/prompts.jsonl
+    test_prompts: fudge/train_data/RealToxicityPrompts/processed/test_prompts # optional, only to check the split is fudge's
+
+models:
+  gpt2_medium:
+    model_string: openai-community/gpt2-medium
+    oracle_ckpt: fudge/ckpt/toxicity/gpt2_medium/model_best.pth.tar
+    venv: .venv
+    # R_c: a full copy of the base model (all layers, new linear head), as in the NADO paper
+
+  # Newer llm families: need transformers 5 (gemma 4), so they run in .venv-new (requirements-new.txt; read by run_toxicity.sh from `venv`).
+  # Base (not instruct) models. R_c keeps only the first rc_layers layers of the base model and the 'tied' head
+  # (frozen lm head, see causalLM.py), so that base model + R_c + optimizer fit in ~16GB of gpu memory.
+  # Llama and Gemma are gated: accept their license on huggingface and log in (HF_TOKEN or `hf auth login`).
+  llama32_1b:
+    model_string: meta-llama/Llama-3.2-1B
+    oracle_ckpt: fudge/ckpt/toxicity/llama32/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 6
+    rc_head: tied
+  llama32_3b:
+    model_string: meta-llama/Llama-3.2-3B
+    oracle_ckpt: fudge/ckpt/toxicity/llama32/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 3
+    rc_head: tied
+  gemma4_e2b:
+    model_string: google/gemma-4-E2B
+    oracle_ckpt: fudge/ckpt/toxicity/gemma4/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 4
+    rc_head: tied
+  gemma4_e4b:
+    model_string: google/gemma-4-E4B
+    oracle_ckpt: fudge/ckpt/toxicity/gemma4/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 2
+    rc_head: tied
+  qwen25_0_5b:
+    model_string: Qwen/Qwen2.5-0.5B
+    oracle_ckpt: fudge/ckpt/toxicity/qwen25/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 24
+    rc_head: tied
+  qwen25_1_5b:
+    model_string: Qwen/Qwen2.5-1.5B
+    oracle_ckpt: fudge/ckpt/toxicity/qwen25/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 8
+    rc_head: tied
+  qwen25_3b:
+    model_string: Qwen/Qwen2.5-3B
+    oracle_ckpt: fudge/ckpt/toxicity/qwen25/model_best.pth.tar
+    dtype: bfloat16
+    venv: .venv-new
+    rc_layers: 4
+    rc_head: tied

@@ -1,5 +1,6 @@
 #!/bin/bash
-# One-off environment setup for the NADO machine translation experiment (train_MT.py) on ReCaS.
+# One-off environment setup on ReCaS for the NADO experiments: machine translation formality (train_MT.py)
+# and toxicity with GPT-2 and the newer llms (train_toxicity.py).
 # Run through HTCondor with recas/setup.sub, or directly from the repository root.
 set -euo pipefail
 
@@ -33,6 +34,18 @@ source .venv/bin/activate
 uv pip install -r requirements.txt
 
 python -c "import torch, transformers; print('torch', torch.__version__, '| transformers', transformers.__version__, '| cuda build', torch.version.cuda)"
+deactivate
+
+# .venv-new: transformers 5, needed by the newer llms of the toxicity task (train_toxicity.py: llama 3.2, gemma 4, qwen2.5).
+# torch from the pytorch CUDA 12.6 index (NEW_TORCH_INDEX to change it)
+NEW_TORCH_INDEX="${NEW_TORCH_INDEX:-https://download.pytorch.org/whl/cu126}"
+if [ ! -d .venv-new ]; then
+    uv venv --python 3.11 .venv-new
+fi
+uv pip install --python .venv-new/bin/python -r requirements-new.txt \
+    --index-url "$NEW_TORCH_INDEX" --extra-index-url https://pypi.org/simple --index-strategy unsafe-best-match
+.venv-new/bin/python -c "import torch, transformers; print('.venv-new: torch', torch.__version__, '| transformers', transformers.__version__, '| cuda build', torch.version.cuda)"
+source .venv/bin/activate
 
 # ---------------------------------------------------------------------------
 # 2. Data: Fisher-Callhome Spanish-English corpus and fluent references
@@ -78,6 +91,28 @@ fi
 ls -l "$FUDGE_EVALUATOR"
 
 # ---------------------------------------------------------------------------
+# 3b. Toxicity task (train_toxicity.py): RealToxicityPrompts and the FUDGE toxicity oracles
+# ---------------------------------------------------------------------------
+# train_toxicity.py splits prompts.jsonl into train/val/test itself, as fudge's prepare_toxicity_data.py does
+RTP=data/RealToxicityPrompts/prompts.jsonl
+if [ ! -f "$RTP" ]; then
+    mkdir -p "$(dirname "$RTP")"
+    curl -fL --retry 3 -o "$RTP.tmp" https://huggingface.co/datasets/allenai/real-toxicity-prompts/resolve/main/prompts.jsonl
+    mv "$RTP.tmp" "$RTP"
+fi
+echo "$(wc -l < "$RTP") RealToxicityPrompts records in $RTP"
+
+# the oracles are the toxicity predictors trained in the fudge repo (one per tokenizer family), read through ./fudge
+if [ ! -e fudge ] && [ -d ../fudge ]; then
+    ln -s ../fudge fudge
+fi
+for ckpt in $(python -c "import yaml; print(' '.join(sorted(set(m['oracle_ckpt'] for m in yaml.safe_load(open('config.yaml'))['models'].values() if m.get('oracle_ckpt')))))"); do
+    if [ ! -f "$ckpt" ]; then
+        echo "WARNING: missing toxicity oracle $ckpt: train it in the fudge repo (the models using it can't run until then)" >&2
+    fi
+done
+
+# ---------------------------------------------------------------------------
 # 4. Pre-download models so the training jobs do not need network access
 # ---------------------------------------------------------------------------
 python - <<'EOF'
@@ -91,7 +126,29 @@ nltk.download("punkt", quiet=True)
 print("Models cached")
 EOF
 
-# Output folders used by train_MT.py
-mkdir -p dump/MT dump/reg_MT
+# Base lms of the toxicity task (every model entry of config.yaml) and gpt2-large, which scores perplexity.
+# Llama and Gemma are gated: accept their license on huggingface and set HF_TOKEN (or run `hf auth login`) first,
+# otherwise they are skipped with a warning.
+.venv-new/bin/python - <<'EOF'
+import yaml
+from huggingface_hub import snapshot_download
+
+models = yaml.safe_load(open('config.yaml'))['models']
+names = sorted(set(m['model_string'] for m in models.values())) + ['openai-community/gpt2-large']
+failed = []
+for name in names:
+    print('downloading', name, flush=True)
+    try:
+        # original/: llama's duplicate weights in meta's format; the others: duplicate weights (.bin/.pth next to the safetensors) and weights in other frameworks
+        snapshot_download(name, ignore_patterns=['original/*', '*.bin', '*.pth', '*.h5', '*.msgpack', '*.ot', '*.onnx', 'onnx/*', '*.tflite', '*.gguf', 'coreml/*'])
+    except Exception as e:
+        print('WARNING: could not download {} ({}: {}). If it is gated (llama, gemma), accept its license on '
+              'huggingface and set HF_TOKEN'.format(name, type(e).__name__, e), flush=True)
+        failed.append(name)
+print('Toxicity models cached' + (', except ' + ', '.join(failed) if failed else ''))
+EOF
+
+# Output folders used by train_MT.py and train_toxicity.py
+mkdir -p dump/MT dump/reg_MT dump/toxicity
 
 echo "Setup completed: $(date)"

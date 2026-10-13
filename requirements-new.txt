@@ -1,0 +1,11 @@
+# Requirements of .venv-new: the recent stack needed by the newer LLM families (Llama 3.2, Qwen2.5, Gemma 4).
+# Python >= 3.10. torch is installed from the pytorch CUDA 12.6 index (see README).
+# Only the toxicity task (train_toxicity.py) runs in this env; train_MT.py needs transformers<5 (.venv, requirements.txt).
+torch==2.14.1
+transformers==5.19.0
+sentencepiece==0.2.2
+protobuf==7.36.2
+tqdm==4.70.1
+numpy
+packaging
+PyYAML==6.0.3

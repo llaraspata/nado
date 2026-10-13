@@ -1,0 +1,26 @@
+universe = vanilla
+request_cpus = 8
+request_gpus = 1
+request_memory = 48 GB
+
+initialdir = /lustrehome/llaraspata/nado
+getenv = True
+
+executable = recas/toxicity.sh
+
+output = logs/toxicity_$(model).out
+error  = logs/toxicity_$(model).out
+log    = logs/toxicity_$(model).condor.log
+
+arguments = "$(model) logs/toxicity_$(model).log"
+
+# one job per model entry of config.yaml:
+# OpenAI gpt2-medium; Meta Llama-3.2-1B, Llama-3.2-3B; Google gemma-4-E2B, gemma-4-E4B; Qwen Qwen2.5-0.5B, Qwen2.5-1.5B, Qwen2.5-3B
+queue model in (
+    gpt2_medium
+    gemma4_e2b
+    gemma4_e4b
+    qwen25_0_5b
+    qwen25_1_5b
+    qwen25_3b
+)

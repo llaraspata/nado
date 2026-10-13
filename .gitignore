@@ -1,5 +1,6 @@
 # Virtual environment
 .venv/
+.venv-new/
 
 # Python
 __pycache__/
@@ -8,6 +9,7 @@ __pycache__/
 
 # Data / outputs
 *.txt
+!requirements*.txt
 *.json
 
 # Editors / OS
@@ -22,3 +24,8 @@ test_evaluator_gyafc_family_relationships/
 *.pt
 dump
 dump/
+# symlink to the fudge repo (ln -s ../fudge fudge)
+fudge
+
+# RealToxicityPrompts, downloaded by recas/setup.sh
+data/
